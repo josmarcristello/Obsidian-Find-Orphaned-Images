@@ -1,0 +1,58 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - '*'  # Triggers the workflow on any tag
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '20.x'  # Use the same Node.js version you're using locally
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}  # This uses the tag name that triggered the workflow
+          release_name: ${{ github.ref_name }}
+          body: |
+            ## What's New
+            - This release contains updates and improvements for the Find Orphaned Images plugin.
+            - Detailed changelog can be found in the repository.
+
+      - name: Upload main.js
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./main.js
+          asset_name: main.js
+          asset_content_type: application/javascript
+
+      - name: Upload manifest.json
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./manifest.json
+          asset_name: manifest.json
+          asset_content_type: application/json
