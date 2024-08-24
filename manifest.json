@@ -5,6 +5,6 @@
     "minAppVersion": "1.0.0",
     "description": "Finds images in the vault that are not linked to any notes. Either lists, or deletes them.",
     "author": "Josmar Cristello",
-    "authorUrl": "https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images",
+    "authorUrl": "https://github.com/josmarcristello/",
     "isDesktopOnly": false
 }
