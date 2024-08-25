@@ -24,7 +24,7 @@ export default class FindOrphanedImagesPlugin extends Plugin {
 
         this.addCommand({
             id: 'find-orphaned-images',
-            name: 'Find Orphaned Images',
+            name: 'Find or Delete Orphaned Images',
             callback: () => this.showOptionsModal(),
         });
 
