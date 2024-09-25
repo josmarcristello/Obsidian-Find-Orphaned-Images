@@ -1,8 +1,13 @@
-/*
-
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
-*/
+/* styles.css */
+.find-orphaned-images-ribbon-icon {
+    stroke: currentColor;
+  }
+  
+  body.theme-dark .find-orphaned-images-ribbon-icon {
+    color: white;
+  }
+  
+  body.theme-light .find-orphaned-images-ribbon-icon {
+    color: black;
+  }
+  
