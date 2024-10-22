@@ -7,6 +7,8 @@
 ![Obsidian Plugin](https://img.shields.io/badge/Obsidian-Plugin-blueviolet)
 ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/josmarcristello/obsidian-find-orphaned-images)
 [![Create Release](https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images/actions/workflows/release.yml/badge.svg)](https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images/actions/workflows/release.yml)
+[![Github All Releases](https://img.shields.io/github/downloads/josmarcristello/obsidian-find-orphaned-images/total.svg)]()
+
 
 
 **Find Orphaned Images** is an Obsidian plugin designed to help you keep your vault clean and organized by identifying and managing images that are not linked anywhere in your notes. With this plugin, you can:
