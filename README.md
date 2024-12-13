@@ -7,7 +7,7 @@
 ![Obsidian Plugin](https://img.shields.io/badge/Obsidian-Plugin-blueviolet)
 ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/josmarcristello/obsidian-find-orphaned-images)
 [![Create Release](https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images/actions/workflows/release.yml/badge.svg)](https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images/actions/workflows/release.yml)
-[![Github All Releases](https://img.shields.io/github/downloads/josmarcristello/obsidian-find-orphaned-images/total.svg)]()
+![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22find-orphaned-images%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)
 
 
 
