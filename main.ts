@@ -3,11 +3,13 @@ import { App, Plugin, TFile, Notice, Modal, Setting, PluginSettingTab } from 'ob
 interface FindOrphanedImagesSettings {
     imageExtensions: string;
     maxDeleteCount: number;
+    moveToTrash: boolean;
 }
 
 const DEFAULT_SETTINGS: FindOrphanedImagesSettings = {
     imageExtensions: 'png, jpg, jpeg, gif, svg, bmp',
     maxDeleteCount: -1,
+    moveToTrash: false, // <--- Default to false
 };
 
 export default class FindOrphanedImagesPlugin extends Plugin {
@@ -74,32 +76,39 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         const allFiles = vault.getFiles();
         const imageFiles = allFiles.filter(file => imageExtensions.includes(file.extension));
         const unlinkedImages: string[] = [];
-
+    
         imageFiles.forEach(image => {
             const imagePath = image.path;
             let isLinked = false;
-
+    
             for (const [filePath, links] of Object.entries(metadataCache.resolvedLinks)) {
                 if (links[imagePath]) {
                     isLinked = true;
                     break;
                 }
             }
-
+    
             if (!isLinked) {
                 unlinkedImages.push(imagePath);
             }
         });
-
+    
         let deleteCount = 0;
         for (const imagePath of unlinkedImages) {
             if (this.settings.maxDeleteCount !== -1 && deleteCount >= this.settings.maxDeleteCount) break;
-
+    
             try {
                 const fileToDelete = vault.getAbstractFileByPath(imagePath);
                 if (fileToDelete instanceof TFile) {
-                    await vault.delete(fileToDelete);
-                    new Notice(`Deleted orphaned image: ${imagePath}`);
+                    if (this.settings.moveToTrash) {
+                        // Move to system trash (if supported)
+                        await vault.trash(fileToDelete, true);
+                        new Notice(`Moved orphaned image to trash: ${imagePath}`);
+                    } else {
+                        // Permanently delete
+                        await vault.delete(fileToDelete);
+                        new Notice(`Deleted orphaned image: ${imagePath}`);
+                    }
                     deleteCount++;
                 }
             } catch (error) {
@@ -107,11 +116,11 @@ export default class FindOrphanedImagesPlugin extends Plugin {
                 new Notice("Failed to delete the orphaned image.");
             }
         }
-
+    
         if (deleteCount === 0) {
             new Notice("No orphaned images found to delete.");
         }
-    }
+    }  
 
     async createOrUpdateUnlinkedImagesNote(unlinkedImages: string[], embedImages: boolean) {
         const { vault } = this.app;
@@ -245,6 +254,17 @@ class FindOrphanedImagesSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.maxDeleteCount.toString())
                 .onChange(async (value) => {
                     this.plugin.settings.maxDeleteCount = parseInt(value, 10) || -1;
+                    await this.plugin.saveSettings();
+                }));
+        
+        // --- Add the "Move to Trash" toggle ---
+        new Setting(containerEl)
+            .setName('Move to Trash')
+            .setDesc('If enabled, orphaned images will be moved to the system trash instead of deleted.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.moveToTrash)
+                .onChange(async (value) => {
+                    this.plugin.settings.moveToTrash = value;
                     await this.plugin.saveSettings();
                 }));
     }
