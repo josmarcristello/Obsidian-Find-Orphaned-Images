@@ -39,6 +39,53 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         modal.open();
     }
 
+    // Helper function to check if an image is referenced in Canvas files
+    async isImageInCanvasFiles(imagePath: string): Promise<boolean> {
+        const { vault } = this.app;
+        const allFiles = vault.getFiles();
+        const canvasFiles = allFiles.filter(file => file.extension === 'canvas');
+        
+        for (const canvasFile of canvasFiles) {
+            try {
+                const canvasContent = await vault.read(canvasFile);
+                // Canvas files are JSON, so we parse them and check for image references
+                try {
+                    const canvasData = JSON.parse(canvasContent);
+                    
+                    // Check if the image is referenced in any node of the canvas
+                    if (canvasData && canvasData.nodes) {
+                        for (const node of canvasData.nodes) {
+                            // Canvas might reference images in different ways
+                            // Here we check the common patterns
+                            if (node.type === 'file' && node.file === imagePath) {
+                                return true;
+                            }
+                            if (node.type === 'text' && node.text && node.text.includes(imagePath)) {
+                                return true;
+                            }
+                            if (node.type === 'image' && node.file === imagePath) {
+                                return true;
+                            }
+                            // Also check the raw content for the path
+                            if (JSON.stringify(node).includes(imagePath)) {
+                                return true;
+                            }
+                        }
+                    }
+                } catch (jsonError) {
+                    console.error("Error parsing canvas file JSON:", jsonError);
+                    // Continue to the next file even if there's a JSON parsing error
+                    continue;
+                }
+            } catch (error) {
+                console.error("Failed to read canvas file:", error);
+                continue;
+            }
+        }
+        
+        return false;
+    }
+
     async findUnlinkedImages(embedImages: boolean) {
         const { vault, metadataCache } = this.app;
         const imageExtensions = this.settings.imageExtensions.split(',').map(ext => ext.trim());
@@ -46,21 +93,27 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         const imageFiles = allFiles.filter(file => imageExtensions.includes(file.extension));
         const unlinkedImages: string[] = [];
 
-        imageFiles.forEach(image => {
+        for (const image of imageFiles) {
             const imagePath = image.path;
             let isLinked = false;
 
-            for (const [filePath, links] of Object.entries(metadataCache.resolvedLinks)) {
+            // Check if image is linked in regular notes
+            for (const [, links] of Object.entries(metadataCache.resolvedLinks)) {
                 if (links[imagePath]) {
                     isLinked = true;
                     break;
                 }
             }
 
+            // If not linked in regular notes, check Canvas files
+            if (!isLinked) {
+                isLinked = await this.isImageInCanvasFiles(imagePath);
+            }
+
             if (!isLinked) {
                 unlinkedImages.push(imagePath);
             }
-        });
+        }
 
         if (unlinkedImages.length > 0) {
             await this.createOrUpdateUnlinkedImagesNote(unlinkedImages, embedImages);
@@ -77,21 +130,27 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         const imageFiles = allFiles.filter(file => imageExtensions.includes(file.extension));
         const unlinkedImages: string[] = [];
     
-        imageFiles.forEach(image => {
+        for (const image of imageFiles) {
             const imagePath = image.path;
             let isLinked = false;
     
-            for (const [filePath, links] of Object.entries(metadataCache.resolvedLinks)) {
+            // Check if image is linked in regular notes
+            for (const [, links] of Object.entries(metadataCache.resolvedLinks)) {
                 if (links[imagePath]) {
                     isLinked = true;
                     break;
                 }
             }
     
+            // If not linked in regular notes, check Canvas files
+            if (!isLinked) {
+                isLinked = await this.isImageInCanvasFiles(imagePath);
+            }
+    
             if (!isLinked) {
                 unlinkedImages.push(imagePath);
             }
-        });
+        }
     
         let deleteCount = 0;
         for (const imagePath of unlinkedImages) {
