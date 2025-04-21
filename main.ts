@@ -45,44 +45,103 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         const allFiles = vault.getFiles();
         const canvasFiles = allFiles.filter(file => file.extension === 'canvas');
         
+        // Create variations of the path to check for (different formats that might be used)
+        const pathToCheck = imagePath;
+        const pathVariations = [
+            pathToCheck,
+            pathToCheck.replace(/^\//, ''), // Without leading slash
+            pathToCheck.replace(/ /g, '%20'), // URL encoded spaces
+            this.encodeImagePath(pathToCheck) // Using our own encoding method
+        ];
+        
+        // Extract just the filename for additional checking
+        const fileName = pathToCheck.split('/').pop() || '';
+        pathVariations.push(fileName);
+        
+        console.log(`Checking if image is in canvas files: ${imagePath}`);
+        console.log(`Path variations:`, pathVariations);
+        
         for (const canvasFile of canvasFiles) {
             try {
                 const canvasContent = await vault.read(canvasFile);
-                // Canvas files are JSON, so we parse them and check for image references
+                console.log(`Checking canvas file: ${canvasFile.path}`);
+                
+                // Simply check if the canvas content contains any of our path variations
+                // This is more robust than trying to parse the exact structure
+                for (const pathVariation of pathVariations) {
+                    if (canvasContent.includes(pathVariation)) {
+                        console.log(`Found match for ${pathVariation} in ${canvasFile.path}`);
+                        return true;
+                    }
+                }
+                
+                // Also try parsing the JSON for a more structured approach if the simple check didn't work
                 try {
                     const canvasData = JSON.parse(canvasContent);
+                    console.log(`Canvas structure for ${canvasFile.path}:`, 
+                        Object.keys(canvasData));
                     
-                    // Check if the image is referenced in any node of the canvas
-                    if (canvasData && canvasData.nodes) {
+                    // If nodes exist, check them
+                    if (canvasData.nodes && Array.isArray(canvasData.nodes)) {
+                        console.log(`Canvas has ${canvasData.nodes.length} nodes`);
+                        
+                        // Examine a sample node to understand structure if available
+                        if (canvasData.nodes.length > 0) {
+                            console.log(`Sample node structure:`, 
+                                Object.keys(canvasData.nodes[0]));
+                        }
+                        
+                        // Check each node for image references in different possible properties
                         for (const node of canvasData.nodes) {
-                            // Canvas might reference images in different ways
-                            // Here we check the common patterns
-                            if (node.type === 'file' && node.file === imagePath) {
-                                return true;
+                            // Check all string properties in the node for our path variations
+                            for (const [key, value] of Object.entries(node)) {
+                                if (typeof value === 'string') {
+                                    for (const pathVariation of pathVariations) {
+                                        if (value.includes(pathVariation)) {
+                                            console.log(`Found match in node.${key} for ${pathVariation}`);
+                                            return true;
+                                        }
+                                    }
+                                }
                             }
-                            if (node.type === 'text' && node.text && node.text.includes(imagePath)) {
-                                return true;
+                            
+                            // Check if the node itself is a file or image
+                            if (node.type === 'file' || node.type === 'image' || node.type === 'media') {
+                                if (node.file) {
+                                    for (const pathVariation of pathVariations) {
+                                        if (node.file.includes(pathVariation)) {
+                                            console.log(`Found match in node.file: ${node.file}`);
+                                            return true;
+                                        }
+                                    }
+                                }
                             }
-                            if (node.type === 'image' && node.file === imagePath) {
-                                return true;
-                            }
-                            // Also check the raw content for the path
-                            if (JSON.stringify(node).includes(imagePath)) {
-                                return true;
+                        }
+                    }
+                    
+                    // If we have edges, check them too (they might contain file references)
+                    if (canvasData.edges && Array.isArray(canvasData.edges)) {
+                        for (const edge of canvasData.edges) {
+                            const edgeStr = JSON.stringify(edge);
+                            for (const pathVariation of pathVariations) {
+                                if (edgeStr.includes(pathVariation)) {
+                                    console.log(`Found match in edge: ${pathVariation}`);
+                                    return true;
+                                }
                             }
                         }
                     }
                 } catch (jsonError) {
-                    console.error("Error parsing canvas file JSON:", jsonError);
+                    console.error(`Error parsing canvas file JSON for ${canvasFile.path}:`, jsonError);
                     // Continue to the next file even if there's a JSON parsing error
-                    continue;
                 }
             } catch (error) {
-                console.error("Failed to read canvas file:", error);
+                console.error(`Failed to read canvas file ${canvasFile.path}:`, error);
                 continue;
             }
         }
         
+        console.log(`No canvas references found for ${imagePath}`);
         return false;
     }
 
