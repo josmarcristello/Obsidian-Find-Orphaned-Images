@@ -26,6 +26,11 @@
 
 ## Installation
 
+### Recommended
+1. In Obsidian, go to Settings, Community Plugins, Browse, and search for "Find Orphaned Images". Install it. Done!
+
+### Direct Installation (not recommended)
+
 1. **Download the Plugin**: You can download the latest release from the [GitHub Releases](https://github.com/yourusername/find-orphaned-images/releases) page.
 
 2. **Extract the Files**: Extract the downloaded zip file and copy the files into your Obsidian vault's plugins directory: `.obsidian/plugins/find-orphaned-images/`.
