@@ -4,12 +4,14 @@ interface FindOrphanedImagesSettings {
     imageExtensions: string;
     maxDeleteCount: number;
     moveToTrash: boolean;
+    showRibbonIcon: boolean; // New setting
 }
 
 const DEFAULT_SETTINGS: FindOrphanedImagesSettings = {
     imageExtensions: 'png, jpg, jpeg, gif, svg, bmp',
     maxDeleteCount: -1,
-    moveToTrash: false, // <--- Default to false
+    moveToTrash: false,
+    showRibbonIcon: false, // Default to false
 };
 
 export default class FindOrphanedImagesPlugin extends Plugin {
@@ -28,8 +30,16 @@ export default class FindOrphanedImagesPlugin extends Plugin {
             callback: () => this.showOptionsModal(),
         });
     
-        // Add the ribbon icon
-        this.ribbonIconEl = this.addRibbonIcon('find-orphaned-images-icon', 'Find orphaned images', () => {
+        // Add the ribbon icon only if enabled in settings
+        if (this.settings.showRibbonIcon) {
+            this.addIconToRibbon();
+        }
+    }
+    
+    // Method to add the ribbon icon with a proper icon
+    addIconToRibbon() {
+        // Using 'image' which is a standard Obsidian icon
+        this.ribbonIconEl = this.addRibbonIcon('image', 'Find orphaned images', () => {
             this.showOptionsModal();
         });
     }
@@ -383,6 +393,28 @@ class FindOrphanedImagesSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.moveToTrash)
                 .onChange(async (value) => {
                     this.plugin.settings.moveToTrash = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Show Ribbon Icon')
+            .setDesc('If enabled, a ribbon icon will be added to the left sidebar.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.showRibbonIcon)
+                .onChange(async (value) => {
+                    this.plugin.settings.showRibbonIcon = value;
+                    
+                    // Remove the existing ribbon icon if it exists
+                    if (this.plugin.ribbonIconEl) {
+                        this.plugin.ribbonIconEl.remove();
+                        this.plugin.ribbonIconEl = null;
+                    }
+                    
+                    // Add the ribbon icon if the setting is enabled
+                    if (value) {
+                        this.plugin.addIconToRibbon();
+                    }
+                    
                     await this.plugin.saveSettings();
                 }));
     }
