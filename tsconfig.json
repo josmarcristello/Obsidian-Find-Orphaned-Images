@@ -20,5 +20,5 @@
   },
   "include": [
     "**/*.ts"
-, ".git/main.ts"  ]
+  ]
 }

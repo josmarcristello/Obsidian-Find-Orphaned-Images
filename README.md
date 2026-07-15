@@ -19,8 +19,10 @@
 ## Features
 
 - **Identify Orphaned Images**: Scan your vault to find images that are not linked in any note.
+- **Broad reference detection**: Detects images used in note links and embeds, YAML frontmatter links, Canvas files (file nodes, group backgrounds, and embeds inside text cards), and raw `<img src="…">` HTML tags.
 - **Generate Reports**: Create a report listing all orphaned images, with options to display images directly or link to them.
-- **Delete Orphaned Images**: Remove orphaned images.
+- **Delete Orphaned Images**: Remove orphaned images, with a confirmation preview and an optional safety scan before anything is deleted.
+- **Folder Scoping**: Include or exclude specific folders, so temporary folders can be cleaned while folders of intentionally-unlinked files are left untouched.
 - **Customizable Settings**: Define which image extensions to look for and set a maximum number of images to delete.
 - **Sidebar Button**: Access the plugin's features using the sidebar button or with the slash command.
 
@@ -31,7 +33,7 @@
 
 ### Direct Installation (not recommended)
 
-1. **Download the Plugin**: You can download the latest release from the [GitHub Releases](https://github.com/yourusername/find-orphaned-images/releases) page.
+1. **Download the Plugin**: You can download the latest release from the [GitHub Releases](https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images/releases) page.
 
 2. **Extract the Files**: Extract the downloaded zip file and copy the files into your Obsidian vault's plugins directory: `.obsidian/plugins/find-orphaned-images/`.
 
@@ -55,8 +57,22 @@ You can also access the plugin's features via commands:
 ### 3. Settings
 
 - **Image Extensions**: Specify which image file extensions to search for. Default: `png, jpg, jpeg, gif, svg, bmp`.
-- **Max Delete Count**: Set a limit on how many images can be deleted in one operation. Use `-1` for no limit.
-- **Show Sidebar Button**: Toggle the sidebar button on or off for quick access to the plugin's features.
+- **Include Folders**: One folder path per line. If set, only images inside these folders are scanned; leave empty to scan the whole vault.
+- **Exclude Folders**: One folder path per line. Images inside these folders are never reported or deleted — useful for folders where unlinked files are intentional. Takes precedence over Include Folders.
+- **Max Delete Count**: Set a limit on how many images can be deleted in one operation. Use `-1` for no limit, or `0` to disable deletion.
+- **Move to Trash**: When deleting, move images to trash (following your Obsidian "Deleted files" preference) instead of permanently deleting them. Enabled by default.
+- **Safety Scan Before Deleting**: Before deleting, skip any image whose filename still appears in a note or canvas. Guards against references the plugin cannot parse. Enabled by default.
+- **Show Ribbon Icon**: Toggle the sidebar (ribbon) button on or off for quick access to the plugin's features.
+
+## Known limitations
+
+Orphan detection relies on how Obsidian indexes references. An image may be reported as orphaned even when it is technically in use if it is referenced only by:
+
+- **Bare (unbracketed) frontmatter values** such as `banner: my-image.png` — Obsidian does not treat these as links; only the consuming plugin (Banners, etc.) understands them. Use a bracketed wikilink (`banner: "[[my-image.png]]"`) to make it detectable.
+- **Other plugins' internal formats** that store image references in their own encoding (some Excalidraw usage, custom code blocks, etc.).
+- **External/remote URLs**, which are intentionally ignored (they are not vault files).
+
+The **Safety Scan Before Deleting** setting is a conservative backstop for these cases: it will keep any image whose filename still appears anywhere in a note or canvas. When in doubt, generate a report first and review it before deleting.
 
 ## Screenshots
 ### Modal Options
@@ -71,7 +87,7 @@ Contributions are welcome! If you have suggestions for new features or find a bu
 
 1. **Fork the Repository**: Click the "Fork" button at the top right of this page to fork this repository.
 
-2. **Clone Your Fork**: Use the command `git clone https://github.com/yourusername/find-orphaned-images.git` to clone your forked repository.
+2. **Clone Your Fork**: Use the command `git clone https://github.com/your-username/Obsidian-Find-Orphaned-Images.git` to clone your forked repository.
 
 3. **Create a Branch**: Use `git checkout -b your-feature-branch` to create a branch for your feature or bug fix.
 
