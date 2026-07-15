@@ -19,11 +19,12 @@
 ## Features
 
 - **Identify Orphaned Images**: Scan your vault to find images that are not linked in any note.
+- **Interactive Review Panel**: Open a sidebar panel that lists every orphaned image with a thumbnail, path, and file size. Tick the ones you want, then delete just those — with a running total of how much space you'll reclaim.
 - **Broad reference detection**: Detects images used in note links and embeds, YAML frontmatter links, Canvas files (file nodes, group backgrounds, and embeds inside text cards), raw `<img src="…">` HTML tags, and embeds inside legacy Admonitions code blocks (` ```ad-note `).
-- **Generate Reports**: Create a report listing all orphaned images, with options to display images directly or link to them.
+- **Generate Reports**: Create a report listing all orphaned images (grouped by folder, with per-file and total sizes), with options to display images directly or link to them.
 - **Delete Orphaned Images**: Remove orphaned images, with a confirmation preview and an optional safety scan before anything is deleted.
 - **Folder Scoping**: Include or exclude specific folders, so temporary folders can be cleaned while folders of intentionally-unlinked files are left untouched.
-- **Customizable Settings**: Define which image extensions to look for and set a maximum number of images to delete.
+- **Customizable Settings**: Define which image extensions to look for, where reports are saved, and a maximum number of images to delete.
 - **Sidebar Button**: Access the plugin's features using the sidebar button or with the slash command.
 
 ## Installation
@@ -46,19 +47,21 @@
 ### 1. Using the Sidebar Button
 
 - **Enable Sidebar Button**: Ensure the sidebar button is enabled in the plugin settings.
-- **Click the Button**: Click the button in the sidebar to open the options modal. From here, you can choose to create a report, view images, or delete orphaned images.
+- **Click the Button**: Click the button in the sidebar to open the interactive review panel, where you can browse orphaned images and delete a selected subset.
 
 ### 2. Running Commands
 
-You can also access the plugin's features via commands:
+You can also access the plugin's features via commands (Command Palette: `Ctrl+P` / `Cmd+P`):
 
-- **Find Orphaned Images**: Use the Command Palette (`Ctrl+P` or `Cmd+P`) and type `Find Orphaned Images` to open the options modal. Alternativelly, use the slash command.
+- **Open orphaned images panel**: Opens the interactive review panel — thumbnails, per-image checkboxes, and delete-selected.
+- **Find or delete orphaned images**: Opens the options modal to generate a report or bulk-delete every orphaned image at once.
 
 ### 3. Settings
 
 - **Image Extensions**: Specify which image file extensions to search for. Default: `png, jpg, jpeg, gif, svg, bmp`.
 - **Include Folders**: One folder path per line. If set, only images inside these folders are scanned; leave empty to scan the whole vault.
 - **Exclude Folders**: One folder path per line. Images inside these folders are never reported or deleted — useful for folders where unlinked files are intentional. Takes precedence over Include Folders.
+- **Report Folder**: Where the generated "Orphaned Images Report" note is saved. The folder is created if it doesn't exist. Leave empty to save it in the vault root.
 - **Max Delete Count**: Set a limit on how many images can be deleted in one operation. Use `-1` for no limit, or `0` to disable deletion.
 - **Move to Trash**: When deleting, move images to trash (following your Obsidian "Deleted files" preference) instead of permanently deleting them. Enabled by default.
 - **Safety Scan Before Deleting**: Before deleting, skip any image whose filename still appears in a note or canvas. Guards against references the plugin cannot parse. Enabled by default.

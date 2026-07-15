@@ -1,5 +1,8 @@
-name: Create Release
+name: Release (tag push)
 
+# Fallback / manual path: fires when you push a tag yourself
+# (e.g. `pnpm version minor && git push --follow-tags`).
+# For the one-click flow, use the "Release (manual bump)" workflow instead.
 on:
   push:
     tags:
@@ -11,18 +14,25 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
 
       - name: Set up Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: '20.x'  # Use the same Node.js version you're using locally
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
 
       - name: Build plugin
-        run: npm run build
+        run: pnpm run build
 
       - name: Create Release
         id: create_release
@@ -56,3 +66,13 @@ jobs:
           asset_path: ./manifest.json
           asset_name: manifest.json
           asset_content_type: application/json
+
+      - name: Upload styles.css
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./styles.css
+          asset_name: styles.css
+          asset_content_type: text/css

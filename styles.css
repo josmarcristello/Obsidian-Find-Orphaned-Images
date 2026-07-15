@@ -1,0 +1,144 @@
+/* Find Orphaned Images — interactive review panel */
+
+.orphaned-images-view {
+    padding: 0;
+}
+
+.orphaned-images-view .oiv-status {
+    color: var(--text-muted);
+    padding: var(--size-4-4);
+    text-align: center;
+}
+
+.orphaned-images-view .oiv-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--background-primary);
+    padding: var(--size-4-2) var(--size-4-3);
+    border-bottom: 1px solid var(--background-modifier-border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-2);
+}
+
+.orphaned-images-view .oiv-summary {
+    font-weight: var(--font-semibold);
+    color: var(--text-normal);
+}
+
+.orphaned-images-view .oiv-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-4-1);
+}
+
+.orphaned-images-view .oiv-btn {
+    font-size: var(--font-ui-smaller);
+    padding: var(--size-4-1) var(--size-4-2);
+    cursor: pointer;
+}
+
+.orphaned-images-view .oiv-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.orphaned-images-view .oiv-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.orphaned-images-view .oiv-btn.mod-warning {
+    color: var(--text-on-accent);
+    background-color: var(--text-error);
+}
+
+.orphaned-images-view .oiv-btn.mod-warning:disabled {
+    background-color: var(--background-modifier-border);
+    color: var(--text-muted);
+}
+
+.orphaned-images-view .oiv-delete-bar {
+    display: flex;
+}
+
+.orphaned-images-view .oiv-delete-bar .oiv-btn {
+    flex: 1;
+    text-align: center;
+}
+
+.orphaned-images-view .oiv-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.orphaned-images-view .oiv-item {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    padding: var(--size-4-2) var(--size-4-3);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.orphaned-images-view .oiv-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.orphaned-images-view .oiv-check {
+    flex: 0 0 auto;
+    cursor: pointer;
+}
+
+.orphaned-images-view .oiv-thumb {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-s);
+    overflow: hidden;
+    background-color: var(--background-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.orphaned-images-view .oiv-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.orphaned-images-view .oiv-thumb-fallback {
+    font-size: var(--font-ui-smaller);
+    font-weight: var(--font-semibold);
+    color: var(--text-muted);
+}
+
+.orphaned-images-view .oiv-meta {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.orphaned-images-view .oiv-path {
+    font-size: var(--font-ui-small);
+    color: var(--text-normal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    direction: rtl; /* keep the filename visible when the path is truncated */
+    text-align: left;
+}
+
+.orphaned-images-view .oiv-path:hover {
+    color: var(--text-accent);
+    text-decoration: underline;
+}
+
+.orphaned-images-view .oiv-size {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+}
