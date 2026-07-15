@@ -1,25 +1,31 @@
-import { App, Plugin, TFile, Notice, Modal, Setting, PluginSettingTab } from 'obsidian';
+import { App, Plugin, TFile, Notice, Modal, Setting, PluginSettingTab, parseLinktext } from 'obsidian';
+import type { CanvasData } from 'obsidian/canvas';
 
 interface FindOrphanedImagesSettings {
     imageExtensions: string;
+    includeFolders: string;
+    excludeFolders: string;
     maxDeleteCount: number;
     moveToTrash: boolean;
-    showRibbonIcon: boolean; // New setting
+    safetyTextScan: boolean;
+    showRibbonIcon: boolean;
 }
 
 const DEFAULT_SETTINGS: FindOrphanedImagesSettings = {
     imageExtensions: 'png, jpg, jpeg, gif, svg, bmp',
+    includeFolders: '',
+    excludeFolders: '',
     maxDeleteCount: -1,
-    moveToTrash: false,
-    showRibbonIcon: false, // Default to false
+    moveToTrash: true, // Safer, recoverable default
+    safetyTextScan: true, // Conservative backstop before deletion
+    showRibbonIcon: false,
 };
 
 export default class FindOrphanedImagesPlugin extends Plugin {
-    settings: FindOrphanedImagesSettings;
+    settings!: FindOrphanedImagesSettings;
     ribbonIconEl: HTMLElement | null = null;
 
     async onload() {
-        console.log('Loading Find Orphaned Images Plugin');
         await this.loadSettings();
     
         this.addSettingTab(new FindOrphanedImagesSettingTab(this.app, this));
@@ -30,15 +36,12 @@ export default class FindOrphanedImagesPlugin extends Plugin {
             callback: () => this.showOptionsModal(),
         });
     
-        // Add the ribbon icon only if enabled in settings
         if (this.settings.showRibbonIcon) {
             this.addIconToRibbon();
         }
     }
-    
-    // Method to add the ribbon icon with a proper icon
+
     addIconToRibbon() {
-        // Using 'image' which is a standard Obsidian icon
         this.ribbonIconEl = this.addRibbonIcon('image', 'Find orphaned images', () => {
             this.showOptionsModal();
         });
@@ -49,206 +52,254 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         modal.open();
     }
 
-    // Helper function to check if an image is referenced in Canvas files
-    async isImageInCanvasFiles(imagePath: string): Promise<boolean> {
+    // Parses every canvas once and returns the vault paths of the files it references:
+    // file nodes, group background images, and image embeds inside text cards.
+    async collectCanvasReferences(): Promise<Set<string>> {
         const { vault } = this.app;
-        const allFiles = vault.getFiles();
-        const canvasFiles = allFiles.filter(file => file.extension === 'canvas');
-        
-        // Create variations of the path to check for (different formats that might be used)
-        const pathToCheck = imagePath;
-        const pathVariations = [
-            pathToCheck,
-            pathToCheck.replace(/^\//, ''), // Without leading slash
-            pathToCheck.replace(/ /g, '%20'), // URL encoded spaces
-            this.encodeImagePath(pathToCheck) // Using our own encoding method
-        ];
-        
-        // Extract just the filename for additional checking
-        const fileName = pathToCheck.split('/').pop() || '';
-        pathVariations.push(fileName);
-        
-        console.log(`Checking if image is in canvas files: ${imagePath}`);
-        console.log(`Path variations:`, pathVariations);
-        
+        const canvasFiles = vault.getFiles().filter(file => file.extension === 'canvas');
+        const referenced = new Set<string>();
+
         for (const canvasFile of canvasFiles) {
+            let data: CanvasData;
             try {
-                const canvasContent = await vault.read(canvasFile);
-                console.log(`Checking canvas file: ${canvasFile.path}`);
-                
-                // Simply check if the canvas content contains any of our path variations
-                // This is more robust than trying to parse the exact structure
-                for (const pathVariation of pathVariations) {
-                    if (canvasContent.includes(pathVariation)) {
-                        console.log(`Found match for ${pathVariation} in ${canvasFile.path}`);
-                        return true;
-                    }
-                }
-                
-                // Also try parsing the JSON for a more structured approach if the simple check didn't work
-                try {
-                    const canvasData = JSON.parse(canvasContent);
-                    console.log(`Canvas structure for ${canvasFile.path}:`, 
-                        Object.keys(canvasData));
-                    
-                    // If nodes exist, check them
-                    if (canvasData.nodes && Array.isArray(canvasData.nodes)) {
-                        console.log(`Canvas has ${canvasData.nodes.length} nodes`);
-                        
-                        // Examine a sample node to understand structure if available
-                        if (canvasData.nodes.length > 0) {
-                            console.log(`Sample node structure:`, 
-                                Object.keys(canvasData.nodes[0]));
-                        }
-                        
-                        // Check each node for image references in different possible properties
-                        for (const node of canvasData.nodes) {
-                            // Check all string properties in the node for our path variations
-                            for (const [key, value] of Object.entries(node)) {
-                                if (typeof value === 'string') {
-                                    for (const pathVariation of pathVariations) {
-                                        if (value.includes(pathVariation)) {
-                                            console.log(`Found match in node.${key} for ${pathVariation}`);
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Check if the node itself is a file or image
-                            if (node.type === 'file' || node.type === 'image' || node.type === 'media') {
-                                if (node.file) {
-                                    for (const pathVariation of pathVariations) {
-                                        if (node.file.includes(pathVariation)) {
-                                            console.log(`Found match in node.file: ${node.file}`);
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // If we have edges, check them too (they might contain file references)
-                    if (canvasData.edges && Array.isArray(canvasData.edges)) {
-                        for (const edge of canvasData.edges) {
-                            const edgeStr = JSON.stringify(edge);
-                            for (const pathVariation of pathVariations) {
-                                if (edgeStr.includes(pathVariation)) {
-                                    console.log(`Found match in edge: ${pathVariation}`);
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                } catch (jsonError) {
-                    console.error(`Error parsing canvas file JSON for ${canvasFile.path}:`, jsonError);
-                    // Continue to the next file even if there's a JSON parsing error
-                }
+                data = JSON.parse(await vault.read(canvasFile));
             } catch (error) {
-                console.error(`Failed to read canvas file ${canvasFile.path}:`, error);
+                // Unreadable or malformed canvas: skip it rather than risk a false "orphaned".
+                console.error(`Failed to parse canvas file ${canvasFile.path}:`, error);
                 continue;
             }
+
+            const nodes = Array.isArray(data?.nodes) ? data.nodes : [];
+            for (const node of nodes) {
+                if (node.type === 'file' && typeof node.file === 'string') {
+                    referenced.add(node.file); // already a full vault path
+                } else if (node.type === 'group' && typeof node.background === 'string') {
+                    this.addResolvedRef(referenced, node.background, canvasFile.path);
+                } else if (node.type === 'text' && typeof node.text === 'string') {
+                    for (const embed of this.extractEmbeds(node.text)) {
+                        this.addResolvedRef(referenced, embed, canvasFile.path);
+                    }
+                }
+            }
         }
-        
-        console.log(`No canvas references found for ${imagePath}`);
-        return false;
+
+        return referenced;
+    }
+
+    // Resolves a link/path against the vault (handling shortest-form links) and records it.
+    private addResolvedRef(set: Set<string>, linkText: string, sourcePath: string) {
+        const { path } = parseLinktext(linkText);
+        const dest = this.app.metadataCache.getFirstLinkpathDest(path, sourcePath);
+        set.add(dest ? dest.path : path);
+    }
+
+    // Extracts embed targets from canvas text: wiki (![[target]]) and markdown (![](target)).
+    private extractEmbeds(text: string): string[] {
+        const targets: string[] = [];
+
+        for (const match of text.matchAll(/!\[\[([^\]|#]+)[^\]]*\]\]/g)) {
+            targets.push(match[1].trim());
+        }
+        for (const match of text.matchAll(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+            const raw = match[1].trim();
+            try {
+                targets.push(decodeURIComponent(raw));
+            } catch {
+                targets.push(raw);
+            }
+        }
+
+        return targets;
+    }
+
+    // Frontmatter wikilinks (e.g. `cover: "[[image.png]]"`), which live outside resolvedLinks.
+    collectFrontmatterReferences(): Set<string> {
+        const { vault, metadataCache } = this.app;
+        const referenced = new Set<string>();
+
+        for (const file of vault.getMarkdownFiles()) {
+            const links = metadataCache.getFileCache(file)?.frontmatterLinks;
+            for (const link of links ?? []) {
+                this.addResolvedRef(referenced, link.link, file.path);
+            }
+        }
+
+        return referenced;
+    }
+
+    // Raw <img src="..."> tags in notes, which Obsidian doesn't index as links.
+    // A targeted scan of the src attribute only — no blind substring matching.
+    async collectHtmlImageReferences(): Promise<Set<string>> {
+        const { vault } = this.app;
+        const referenced = new Set<string>();
+
+        for (const file of vault.getMarkdownFiles()) {
+            let content: string;
+            try {
+                content = await vault.cachedRead(file);
+            } catch (error) {
+                console.error(`Failed to read note ${file.path}:`, error);
+                continue;
+            }
+
+            for (const match of content.matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)) {
+                const src = match[1].trim();
+                if (/^[a-z][a-z0-9+.-]*:\/\//i.test(src)) continue; // skip external/absolute URLs
+                let path = src;
+                try {
+                    path = decodeURIComponent(src);
+                } catch { /* keep raw */ }
+                this.addResolvedRef(referenced, path.replace(/^\.?\//, ''), file.path);
+            }
+        }
+
+        return referenced;
+    }
+
+    // Parses a newline/comma-separated folder list into normalized, lowercased prefixes.
+    private parseFolderList(raw: string): string[] {
+        return raw
+            .split(/[\r\n,]+/)
+            .map(entry => entry.trim().replace(/^\/+|\/+$/g, '').toLowerCase())
+            .filter(entry => entry.length > 0);
+    }
+
+    // True if the vault path sits inside the given folder (the folder itself or any subpath).
+    private isInFolder(path: string, folder: string): boolean {
+        const p = path.toLowerCase();
+        return p === folder || p.startsWith(folder + '/');
+    }
+
+    // Returns every image not referenced by any note, frontmatter, canvas, or raw <img> tag.
+    async getOrphanedImages(): Promise<TFile[]> {
+        const { vault, metadataCache } = this.app;
+        const imageExtensions = this.settings.imageExtensions
+            .split(',')
+            .map(ext => ext.trim().toLowerCase())
+            .filter(ext => ext.length > 0);
+
+        const includeFolders = this.parseFolderList(this.settings.includeFolders);
+        const excludeFolders = this.parseFolderList(this.settings.excludeFolders);
+
+        const imageFiles = vault.getFiles().filter(file =>
+            imageExtensions.includes(file.extension.toLowerCase())
+            && (includeFolders.length === 0 || includeFolders.some(dir => this.isInFolder(file.path, dir)))
+            && !excludeFolders.some(dir => this.isInFolder(file.path, dir)));
+
+        // No candidates after folder filtering — skip the expensive reference scan.
+        if (imageFiles.length === 0) return [];
+
+        // Union every source of references into one set for O(1) lookups.
+        const referenced = new Set<string>();
+        for (const targets of Object.values(metadataCache.resolvedLinks)) {
+            for (const targetPath of Object.keys(targets)) {
+                referenced.add(targetPath);
+            }
+        }
+        for (const path of this.collectFrontmatterReferences()) referenced.add(path);
+        for (const path of await this.collectCanvasReferences()) referenced.add(path);
+        for (const path of await this.collectHtmlImageReferences()) referenced.add(path);
+
+        return imageFiles.filter(image => !referenced.has(image.path));
     }
 
     async findUnlinkedImages(embedImages: boolean) {
-        const { vault, metadataCache } = this.app;
-        const imageExtensions = this.settings.imageExtensions.split(',').map(ext => ext.trim());
-        const allFiles = vault.getFiles();
-        const imageFiles = allFiles.filter(file => imageExtensions.includes(file.extension));
-        const unlinkedImages: string[] = [];
+        const orphanedImages = await this.getOrphanedImages();
 
-        for (const image of imageFiles) {
-            const imagePath = image.path;
-            let isLinked = false;
-
-            // Check if image is linked in regular notes
-            for (const [, links] of Object.entries(metadataCache.resolvedLinks)) {
-                if (links[imagePath]) {
-                    isLinked = true;
-                    break;
-                }
-            }
-
-            // If not linked in regular notes, check Canvas files
-            if (!isLinked) {
-                isLinked = await this.isImageInCanvasFiles(imagePath);
-            }
-
-            if (!isLinked) {
-                unlinkedImages.push(imagePath);
-            }
-        }
-
-        if (unlinkedImages.length > 0) {
-            await this.createOrUpdateUnlinkedImagesNote(unlinkedImages, embedImages);
-            new Notice(`Found ${unlinkedImages.length} orphaned images. Note created or updated with details.`);
+        if (orphanedImages.length > 0) {
+            await this.createOrUpdateUnlinkedImagesNote(orphanedImages.map(f => f.path), embedImages);
+            new Notice(`Found ${orphanedImages.length} orphaned images. Note created or updated with details.`);
         } else {
             new Notice("All images are linked!");
         }
     }
 
-    async deleteFirstUnlinkedImage() {
-        const { vault, metadataCache } = this.app;
-        const imageExtensions = this.settings.imageExtensions.split(',').map(ext => ext.trim());
-        const allFiles = vault.getFiles();
-        const imageFiles = allFiles.filter(file => imageExtensions.includes(file.extension));
-        const unlinkedImages: string[] = [];
-    
-        for (const image of imageFiles) {
-            const imagePath = image.path;
-            let isLinked = false;
-    
-            // Check if image is linked in regular notes
-            for (const [, links] of Object.entries(metadataCache.resolvedLinks)) {
-                if (links[imagePath]) {
-                    isLinked = true;
-                    break;
-                }
-            }
-    
-            // If not linked in regular notes, check Canvas files
-            if (!isLinked) {
-                isLinked = await this.isImageInCanvasFiles(imagePath);
-            }
-    
-            if (!isLinked) {
-                unlinkedImages.push(imagePath);
-            }
-        }
-    
-        let deleteCount = 0;
-        for (const imagePath of unlinkedImages) {
-            if (this.settings.maxDeleteCount !== -1 && deleteCount >= this.settings.maxDeleteCount) break;
-    
-            try {
-                const fileToDelete = vault.getAbstractFileByPath(imagePath);
-                if (fileToDelete instanceof TFile) {
-                    if (this.settings.moveToTrash) {
-                        // Move to system trash (if supported)
-                        await vault.trash(fileToDelete, true);
-                        new Notice(`Moved orphaned image to trash: ${imagePath}`);
-                    } else {
-                        // Permanently delete
-                        await vault.delete(fileToDelete);
-                        new Notice(`Deleted orphaned image: ${imagePath}`);
-                    }
-                    deleteCount++;
-                }
-            } catch (error) {
-                console.error("Failed to delete the image:", error);
-                new Notice("Failed to delete the orphaned image.");
-            }
-        }
-    
-        if (deleteCount === 0) {
+    async deleteOrphanedImages() {
+        const orphanedImages = await this.getOrphanedImages();
+
+        if (orphanedImages.length === 0) {
             new Notice("No orphaned images found to delete.");
+            return;
         }
-    }  
+
+        // -1 = no limit, 0 = delete nothing, >0 = cap.
+        const limit = this.settings.maxDeleteCount;
+        let filesToDelete = limit >= 0 ? orphanedImages.slice(0, limit) : orphanedImages;
+
+        if (filesToDelete.length === 0) {
+            new Notice("Max delete count is set to 0, so no images were deleted.");
+            return;
+        }
+
+        // Conservative backstop for references we can't parse (see filterBySafetyScan).
+        if (this.settings.safetyTextScan) {
+            const before = filesToDelete.length;
+            filesToDelete = await this.filterBySafetyScan(filesToDelete);
+            const skipped = before - filesToDelete.length;
+            if (skipped > 0) {
+                new Notice(`Safety scan kept ${skipped} image${skipped === 1 ? '' : 's'} whose name still appears in a note or canvas.`);
+            }
+            if (filesToDelete.length === 0) {
+                new Notice("Safety scan found a possible reference to every candidate; nothing was deleted.");
+                return;
+            }
+        }
+
+        // Confirm before deleting anything.
+        new ConfirmDeleteModal(
+            this.app,
+            filesToDelete.map(f => f.path),
+            this.settings.moveToTrash,
+            () => this.performDeletion(filesToDelete),
+        ).open();
+    }
+
+    // Drops any image whose filename still appears anywhere in a note or canvas.
+    // Deliberately conservative (substring, so it over-keeps): missing a real reference
+    // could delete an in-use image, whereas keeping a true orphan is harmless.
+    async filterBySafetyScan(files: TFile[]): Promise<TFile[]> {
+        const { vault } = this.app;
+        const textFiles = vault.getFiles()
+            .filter(file => file.extension === 'md' || file.extension === 'canvas');
+
+        const contents: string[] = [];
+        for (const file of textFiles) {
+            try {
+                contents.push(await vault.cachedRead(file));
+            } catch (error) {
+                console.error(`Failed to read ${file.path} during safety scan:`, error);
+            }
+        }
+
+        return files.filter(image =>
+            !contents.some(content => content.includes(image.name)));
+    }
+
+    async performDeletion(files: TFile[]) {
+        let successCount = 0;
+
+        for (const file of files) {
+            try {
+                if (this.settings.moveToTrash) {
+                    // Respects the user's "Deleted files" preference.
+                    await this.app.fileManager.trashFile(file);
+                } else {
+                    await this.app.vault.delete(file);
+                }
+                successCount++;
+            } catch (error) {
+                console.error(`Failed to delete orphaned image: ${file.path}`, error);
+            }
+        }
+
+        if (successCount > 0) {
+            const action = this.settings.moveToTrash ? 'Moved to trash' : 'Deleted';
+            new Notice(`${action} ${successCount} orphaned image${successCount === 1 ? '' : 's'}.`);
+        }
+        if (successCount < files.length) {
+            new Notice(`Failed to delete ${files.length - successCount} image(s). See console for details.`);
+        }
+    }
 
     async createOrUpdateUnlinkedImagesNote(unlinkedImages: string[], embedImages: boolean) {
         const { vault } = this.app;
@@ -291,7 +342,6 @@ export default class FindOrphanedImagesPlugin extends Plugin {
     }
 
     onunload() {
-        console.log('Unloading Find Orphaned Images Plugin');
         if (this.ribbonIconEl) {
             this.ribbonIconEl.remove();
         }
@@ -308,7 +358,7 @@ class ImageOptionsModal extends Modal {
 
     onOpen() {
         const { contentEl } = this;
-        contentEl.createEl('h2', { text: 'Create a report or delete the images?' });
+        this.setTitle('Create a report or delete the images?');
 
         new Setting(contentEl)
             .setName('Embed images')
@@ -326,7 +376,6 @@ class ImageOptionsModal extends Modal {
             .setDesc('Create a report with text links to the images. This will not display the images in the note.')
             .addButton(button => button
                 .setButtonText('Create')
-                .setCta()
                 .onClick(() => {
                     this.plugin.findUnlinkedImages(false);
                     this.close();
@@ -334,19 +383,72 @@ class ImageOptionsModal extends Modal {
 
         new Setting(contentEl)
             .setName('Delete orphaned images')
-            .setDesc('Delete the X images found in the vault. X is the max delete count, defined in the settings.')
+            .setDesc('Delete the orphaned images found in the vault, up to the max delete count set in the plugin settings.')
             .addButton(button => button
                 .setButtonText('Delete')
-                .setCta()
+                .setWarning()
                 .onClick(() => {
-                    this.plugin.deleteFirstUnlinkedImage();
                     this.close();
+                    this.plugin.deleteOrphanedImages();
                 }));
     }
 
     onClose() {
         const { contentEl } = this;
         contentEl.empty();
+    }
+}
+
+class ConfirmDeleteModal extends Modal {
+    private imagePaths: string[];
+    private moveToTrash: boolean;
+    private onConfirm: () => void;
+
+    constructor(app: App, imagePaths: string[], moveToTrash: boolean, onConfirm: () => void) {
+        super(app);
+        this.imagePaths = imagePaths;
+        this.moveToTrash = moveToTrash;
+        this.onConfirm = onConfirm;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        const count = this.imagePaths.length;
+        const plural = count === 1 ? '' : 's';
+
+        this.setTitle(`Delete ${count} orphaned image${plural}?`);
+
+        contentEl.createEl('p', {
+            text: this.moveToTrash
+                ? `This will move ${count} image${plural} to trash. You can restore them from your trash if needed.`
+                : `This will permanently delete ${count} image${plural}. This cannot be undone.`,
+        });
+
+        // Capped preview of what will be removed.
+        const previewLimit = 10;
+        const list = contentEl.createEl('ul');
+        for (const path of this.imagePaths.slice(0, previewLimit)) {
+            list.createEl('li', { text: path });
+        }
+        if (count > previewLimit) {
+            list.createEl('li', { text: `…and ${count - previewLimit} more.` });
+        }
+
+        new Setting(contentEl)
+            .addButton(button => button
+                .setButtonText('Cancel')
+                .onClick(() => this.close()))
+            .addButton(button => button
+                .setButtonText(this.moveToTrash ? 'Move to trash' : 'Delete')
+                .setWarning()
+                .onClick(() => {
+                    this.close();
+                    this.onConfirm();
+                }));
+    }
+
+    onClose() {
+        this.contentEl.empty();
     }
 }
 
@@ -373,22 +475,45 @@ class FindOrphanedImagesSettingTab extends PluginSettingTab {
                     this.plugin.settings.imageExtensions = value;
                     await this.plugin.saveSettings();
                 }));
-    
+
+        new Setting(containerEl)
+            .setName('Include folders')
+            .setDesc('One folder path per line. If set, only images inside these folders are scanned. Leave empty to scan the whole vault.')
+            .addTextArea(text => text
+                .setPlaceholder('e.g. Attachments/Temp')
+                .setValue(this.plugin.settings.includeFolders)
+                .onChange(async (value) => {
+                    this.plugin.settings.includeFolders = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Exclude folders')
+            .setDesc('One folder path per line. Images inside these folders are never reported or deleted. Takes precedence over Include folders.')
+            .addTextArea(text => text
+                .setPlaceholder('e.g. Assets/Keep')
+                .setValue(this.plugin.settings.excludeFolders)
+                .onChange(async (value) => {
+                    this.plugin.settings.excludeFolders = value;
+                    await this.plugin.saveSettings();
+                }));
+
         new Setting(containerEl)
             .setName('Max delete count')
-            .setDesc('Maximum number of orphaned images to delete (-1 for no limit).')
+            .setDesc('Maximum number of orphaned images to delete (-1 for no limit, 0 to disable deletion).')
             .addText(text => text
                 .setPlaceholder('-1')
                 .setValue(this.plugin.settings.maxDeleteCount.toString())
                 .onChange(async (value) => {
-                    this.plugin.settings.maxDeleteCount = parseInt(value, 10) || -1;
+                    const parsed = parseInt(value, 10);
+                    // Preserve 0; clamp below -1 to -1; invalid input falls back to -1.
+                    this.plugin.settings.maxDeleteCount = Number.isNaN(parsed) ? -1 : Math.max(-1, parsed);
                     await this.plugin.saveSettings();
                 }));
         
-        // --- Add the "Move to Trash" toggle ---
         new Setting(containerEl)
-            .setName('Move to Trash')
-            .setDesc('If enabled, orphaned images will be moved to the system trash instead of deleted.')
+            .setName('Move to trash')
+            .setDesc('If enabled, orphaned images are moved to trash (using your configured deletion preference) instead of being permanently deleted.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.moveToTrash)
                 .onChange(async (value) => {
@@ -397,24 +522,31 @@ class FindOrphanedImagesSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Show Ribbon Icon')
+            .setName('Safety scan before deleting')
+            .setDesc('Before deleting, skip any image whose filename still appears in a note or canvas. Guards against references this plugin cannot detect (raw HTML, other plugins, etc.). Recommended.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.safetyTextScan)
+                .onChange(async (value) => {
+                    this.plugin.settings.safetyTextScan = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Show ribbon icon')
             .setDesc('If enabled, a ribbon icon will be added to the left sidebar.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.showRibbonIcon)
                 .onChange(async (value) => {
                     this.plugin.settings.showRibbonIcon = value;
-                    
-                    // Remove the existing ribbon icon if it exists
+
                     if (this.plugin.ribbonIconEl) {
                         this.plugin.ribbonIconEl.remove();
                         this.plugin.ribbonIconEl = null;
                     }
-                    
-                    // Add the ribbon icon if the setting is enabled
                     if (value) {
                         this.plugin.addIconToRibbon();
                     }
-                    
+
                     await this.plugin.saveSettings();
                 }));
     }

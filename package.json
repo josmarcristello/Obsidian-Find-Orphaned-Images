@@ -1,16 +1,31 @@
 {
 	"name": "obsidian-find-orphaned-images",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"version": "1.2.0",
+	"description": "Obsidian plugin that finds images in the vault that are not linked to any notes, then lists or deletes them.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": [],
-	"author": "",
-	"license": "MIT",
+	"keywords": [
+		"obsidian",
+		"obsidian-plugin",
+		"orphaned-images",
+		"unused-images",
+		"attachments",
+		"cleanup"
+	],
+	"author": "Josmar Cristello",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images.git"
+	},
+	"bugs": {
+		"url": "https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images/issues"
+	},
+	"homepage": "https://github.com/josmarcristello/Obsidian-Find-Orphaned-Images#readme",
+	"license": "GPL-3.0-or-later",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",
@@ -21,5 +36,5 @@
 		"tslib": "2.4.0",
 		"typescript": "4.7.4"
 	},
-	 "packageManager": "pnpm@8.0.0"
+	"packageManager": "pnpm@8.0.0"
 }
