@@ -19,7 +19,7 @@
 ## Features
 
 - **Identify Orphaned Images**: Scan your vault to find images that are not linked in any note.
-- **Broad reference detection**: Detects images used in note links and embeds, YAML frontmatter links, Canvas files (file nodes, group backgrounds, and embeds inside text cards), and raw `<img src="…">` HTML tags.
+- **Broad reference detection**: Detects images used in note links and embeds, YAML frontmatter links, Canvas files (file nodes, group backgrounds, and embeds inside text cards), raw `<img src="…">` HTML tags, and embeds inside legacy Admonitions code blocks (` ```ad-note `).
 - **Generate Reports**: Create a report listing all orphaned images, with options to display images directly or link to them.
 - **Delete Orphaned Images**: Remove orphaned images, with a confirmation preview and an optional safety scan before anything is deleted.
 - **Folder Scoping**: Include or exclude specific folders, so temporary folders can be cleaned while folders of intentionally-unlinked files are left untouched.

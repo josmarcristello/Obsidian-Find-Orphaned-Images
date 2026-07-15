@@ -1,7 +1,7 @@
 {
 	"id": "find-orphaned-images",
 	"name": "Find Orphaned Images",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"minAppVersion": "1.0.0",
 	"description": "Finds images in the vault that are not linked to any notes. Either lists, or deletes them.",
 	"author": "Josmar Cristello",

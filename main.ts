@@ -127,9 +127,11 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         return referenced;
     }
 
-    // Raw <img src="..."> tags in notes, which Obsidian doesn't index as links.
-    // A targeted scan of the src attribute only — no blind substring matching.
-    async collectHtmlImageReferences(): Promise<Set<string>> {
+    // References Obsidian does not index, scanned from raw note text in one pass:
+    //  - raw <img src="..."> HTML tags
+    //  - embeds inside legacy Admonitions code blocks (```ad-note … ![[image.png]] … ```),
+    //    which Obsidian treats as literal code and therefore never resolves.
+    async collectNoteBodyReferences(): Promise<Set<string>> {
         const { vault } = this.app;
         const referenced = new Set<string>();
 
@@ -142,6 +144,7 @@ export default class FindOrphanedImagesPlugin extends Plugin {
                 continue;
             }
 
+            // Raw <img src="..."> tags (targeted to the src attribute only).
             for (const match of content.matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)) {
                 const src = match[1].trim();
                 if (/^[a-z][a-z0-9+.-]*:\/\//i.test(src)) continue; // skip external/absolute URLs
@@ -150,6 +153,14 @@ export default class FindOrphanedImagesPlugin extends Plugin {
                     path = decodeURIComponent(src);
                 } catch { /* keep raw */ }
                 this.addResolvedRef(referenced, path.replace(/^\.?\//, ''), file.path);
+            }
+
+            // Embeds inside Admonitions code blocks. Only `ad-*` fences (which render
+            // their embeds) are scanned — ordinary code blocks are left untouched.
+            for (const block of content.matchAll(/(`{3,}|~{3,})[ \t]*ad-[\w-]+[^\n]*\n([\s\S]*?)\r?\n\1/gi)) {
+                for (const embed of this.extractEmbeds(block[2])) {
+                    this.addResolvedRef(referenced, embed, file.path);
+                }
             }
         }
 
@@ -170,7 +181,7 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         return p === folder || p.startsWith(folder + '/');
     }
 
-    // Returns every image not referenced by any note, frontmatter, canvas, or raw <img> tag.
+    // Returns every image not referenced by any note, frontmatter, canvas, raw <img> tag, or admonition.
     async getOrphanedImages(): Promise<TFile[]> {
         const { vault, metadataCache } = this.app;
         const imageExtensions = this.settings.imageExtensions
@@ -198,7 +209,7 @@ export default class FindOrphanedImagesPlugin extends Plugin {
         }
         for (const path of this.collectFrontmatterReferences()) referenced.add(path);
         for (const path of await this.collectCanvasReferences()) referenced.add(path);
-        for (const path of await this.collectHtmlImageReferences()) referenced.add(path);
+        for (const path of await this.collectNoteBodyReferences()) referenced.add(path);
 
         return imageFiles.filter(image => !referenced.has(image.path));
     }
